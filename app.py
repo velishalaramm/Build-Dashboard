@@ -90,24 +90,24 @@ def get_instance_status(instance_id):
 JOB_MAP = {
     "java": {
         "ols": {
-            "angular": "STBTT-OLS-UAT-ANGULAR-2",
-            "war": "STBTT_OLS_UAT_WAR",
+            "angular": " -OLS-UAT-ANGULAR-2",
+            "war": " _OLS_UAT_WAR",
             "war-angular": "DevOps/job/ols-full"
         },
         "admin": {
-            "war": "STBTT_ADMIN_UAT_WAR",
-            "angular": "STBTT_ADMIN_UAT_ANGULAR"
+            "war": " _ADMIN_UAT_WAR",
+            "angular": " _ADMIN_UAT_ANGULAR"
         }
     },
     "reports":{
-        "war": "STBTT_REPORTS_UAT_WAR",
-        "angular": "STBTT_REPORTS_UAT_ANGULAR"
+        "war": " _REPORTS_UAT_WAR",
+        "angular": " _REPORTS_UAT_ANGULAR"
         },
 
     "dotnet": {
-        "cms": "STBTT_UAT_CMS",
-        "fms": "STBTT_UAT_FMS",
-        "dms": "STBTT_UAT_DMS"
+        "cms": " _UAT_CMS",
+        "fms": " _UAT_FMS",
+        "dms": " _UAT_DMS"
     }
 }
 
