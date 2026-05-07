@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>STBTT Login</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 300px;
+      text-align: center;
+      box-shadow: 0px 5px 20px rgba(0,0,0,0.3);
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #2a5298;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .error {
+      color: red;
+      margin-top: 10px;
+    }
+
+    h2 { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="login-box">
+  <h2>🔐 Login</h2>
+
+  <input type="text" id="username" placeholder="Username" required>
+  <input type="password" id="password" placeholder="Password" required>
+  <button onclick="login()">Login</button>
+
+  <p id="msg" class="error"></p>
+
+  <div id="server-status" style="display:none; margin-top: 20px; padding: 15px; border-top: 1px solid #eee;">
+    <p style="color: #e53935; font-weight: bold;">⚠️ Services are Down</p>
+    <div style="text-align: left; font-size: 14px; margin: 10px 0;">
+      <div>Server 1: <span id="s1-status"></span></div>
+      <div>Server 2: <span id="s2-status"></span></div>
+    </div>
+    <button id="start-btn" onclick="startServers()" style="background: #4caf50;">Start Servers</button>
+  </div>
+</div>
+
+<script>
+const API_KEY = "74e00e46a87fc786c719c4e568df90332ec4f1d1dbff9431e46e1fb22a10defc";
+
+async function login() {
+  const msg = document.getElementById("msg");
+  const serverDiv = document.getElementById("server-status");
+  msg.innerText = "Checking...";
+  serverDiv.style.display = "none";
+
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+
+    if (res.status === 200) {
+      if (data.status === "SUCCESS") {
+        localStorage.setItem("auth", "true");
+        localStorage.setItem("username", data.username || username);
+        window.location.replace("/index.html");
+      } else if (data.status === "SERVERS_DOWN") {
+        localStorage.setItem("username", data.username || username);
+
+        msg.innerText = "";
+        serverDiv.style.display = "block";
+        document.getElementById("s1-status").innerText = data.s1;
+        document.getElementById("s1-status").style.color = data.s1 === "UP" ? "green" : "red";
+        document.getElementById("s2-status").innerText = data.s2;
+        document.getElementById("s2-status").style.color = data.s2 === "UP" ? "green" : "red";
+      }
+    } else {
+      msg.innerText = data.message || "Login failed";
+    }
+
+  } catch (e) {
+    msg.innerText = "Server error";
+  }
+}
+
+async function startServers() {
+  const btn = document.getElementById("start-btn");
+  const msg = document.getElementById("msg");
+  btn.disabled = true;
+  btn.innerText = "Starting...";
+
+  try {
+    const res = await fetch("/api/start-servers", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": API_KEY
+      }
+    });
+    const data = await res.json();
+    alert(data.message || "Servers are starting. Please wait a few minutes and try logging in again.");
+    btn.innerText = "Start Servers";
+    btn.disabled = false;
+  } catch (e) {
+    alert("Failed to start servers");
+    btn.disabled = false;
+    btn.innerText = "Start Servers";
+  }
+}
+</script>
+
+</body>
+</html>

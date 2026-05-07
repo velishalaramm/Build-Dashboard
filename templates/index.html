@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title> STBTT Build Dashboard</title>
+<style>
+body { margin:0; font-family:'Segoe UI', Arial; background:#f4f6f9; }
+.header { position:relative; background:#1e3c72; color:white; padding:15px; text-align:center; }
+.header-title { font-size:20px; font-weight:bold; }
+.logout-btn { position:absolute; right:15px; top:12px; background:#e53935; border:none; color:white; padding:5px 10px; font-size:12px; border-radius:4px; cursor:pointer; }
+.main { display:flex; }
+.sidebar { width:200px; background:#2a5298; color:white; height:100vh; padding-top:20px; }
+.sidebar div { padding:12px 20px; cursor:pointer; }
+.sidebar div:hover { background:#1e3c72; }
+.content { flex:1; padding:30px; }
+.card { background:white; padding:25px; border-radius:10px; width:450px; box-shadow:0 4px 20px rgba(0,0,0,0.1); }
+select, input { width:100%; padding:10px; margin-top:10px; border-radius:6px; border:1px solid #ccc; }
+.deploy-btn { width:100%; margin-top:15px; padding:12px; background:#2a5298; color:white; border:none; border-radius:6px; cursor:pointer; }
+.status { margin-top:15px; font-weight:bold; }
+.running { color:orange; } .success { color:green; } .failed { color:red; }
+#logs { margin-top:20px; background:black; color:#00ff00; padding:10px; height:250px; overflow-y:auto; border-radius:6px; font-size:12px; white-space:pre-wrap; }
+.history-card { background:white; padding:20px; border-radius:10px; box-shadow:0 4px 20px rgba(0,0,0,0.1); margin-bottom:20px; }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.build-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+.build-item:last-child { border-bottom: none; }
+.stats-box { display: flex; gap: 20px; margin-bottom: 20px; }
+.stat-card { background: white; padding: 20px; border-radius: 10px; flex: 1; text-align: center; box-shadow:0 4px 20px rgba(0,0,0,0.1); font-size: 18px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">🚀 STBTT Build Dashboard</div>
+  <button class="logout-btn" onclick="handleLogout()">Logout</button>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div onclick="showView('dashboard')">🏠 Dashboard</div>
+    <div onclick="showView('history')">📜 History</div>
+  </div>
+
+  <div class="content">
+    <div id="dashboard-view">
+      <div class="card">
+      <h2>Trigger Build</h2>
+      <select id="tech" onchange="updateUI()">
+        <option value="">Select Technology</option>
+        <option value="java">Java</option>
+        <option value="dotnet">DotNet</option>
+      </select>
+      <select id="app"></select>
+      <select id="type"></select>
+      <input type="text" id="svn" placeholder="Enter SVN URL" />
+      <button class="deploy-btn" onclick="deploy()">Deploy</button>
+      <div id="status" class="status"></div>
+      <div id="logs"></div>
+    </div>
+    </div>
+    
+    <div id="history-view" style="display: none;">
+      <h2>Build History</h2>
+      <div id="history-content">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_KEY = "74e00e46a87fc786c719c4e568df90332ec4f1d1dbff9431e46e1fb22a10defc"; // must match Flask API_KEY
+let polling = false;
+
+const JOB_MAP = {
+  "java": {
+    "ols": { "angular": "DevOps/job/ols-angular", "war": "DevOps/job/ols-war", "war-angular": "DevOps/job/ols-full" },
+    "admin": { "angular": "Admin-UAT-ANGULAR-Manual", "war": "DevOps/job/admin-war", "war-angular": "DevOps/job/admin-full" }
+  },
+  "dotnet": {
+    "cms": { "default": "DevOps/job/dotnet-cms" },
+    "fms": { "default": "DevOps/job/dotnet-fms" }
+  }
+};
+
+// Redirect if not logged in or username missing
+if (!localStorage.getItem("auth") || !localStorage.getItem("username")) {
+    window.location.replace("/login.html");
+}
+
+
+async function handleLogout() {
+  if (confirm("Logout?")) {
+    const username = localStorage.getItem("username") || "Unknown User";
+    try {
+      await fetch("/api/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username }),
+        keepalive: true
+      });
+
+    } catch (err) {
+      console.warn("Logout notification failed", err);
+    }
+    localStorage.removeItem("auth");
+    localStorage.removeItem("username");
+    window.location.replace("/login.html");
+  }
+}
+
+function updateUI() {
+  const tech = document.getElementById("tech").value;
+  const appSelect = document.getElementById("app");
+  const typeSelect = document.getElementById("type");
+
+  appSelect.innerHTML = "";
+  typeSelect.innerHTML = "";
+
+  if (!tech) return;
+
+  Object.keys(JOB_MAP[tech]).forEach(app => {
+    const opt = document.createElement("option");
+    opt.value = app;
+    opt.text = app.charAt(0).toUpperCase() + app.slice(1);
+    appSelect.add(opt);
+  });
+
+  const selectedApp = appSelect.value || Object.keys(JOB_MAP[tech])[0];
+  const types = Object.keys(JOB_MAP[tech][selectedApp]);
+  types.forEach(type => {
+    const opt = document.createElement("option");
+    opt.value = type;
+    opt.text = type === "default" ? "Default" : type.charAt(0).toUpperCase() + type.slice(1);
+    typeSelect.add(opt);
+  });
+
+  appSelect.onchange = () => {
+    typeSelect.innerHTML = "";
+    const selectedApp = appSelect.value;
+    const types = Object.keys(JOB_MAP[tech][selectedApp]);
+    types.forEach(type => {
+      const opt = document.createElement("option");
+      opt.value = type;
+      opt.text = type === "default" ? "Default" : type.charAt(0).toUpperCase() + type.slice(1);
+      typeSelect.add(opt);
+    });
+  };
+}
+
+// Initialize UI
+updateUI();
+
+async function deploy() {
+  const tech = document.getElementById("tech").value;
+  const app = document.getElementById("app").value;
+  const type = document.getElementById("type").value;
+  const svn = document.getElementById("svn").value;
+
+  const job = JOB_MAP[tech][app][type] || JOB_MAP[tech][app]["default"];
+
+  const statusDiv = document.getElementById("status");
+  const logsDiv = document.getElementById("logs");
+  statusDiv.innerHTML = "<span class='running'>Deploying...</span>";
+  logsDiv.innerText = "";
+
+  polling = true;
+
+  const res = await fetch("/api/deploy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY
+    },
+    body: JSON.stringify({
+      tech,
+      app,
+      type,
+      svn_url: svn
+    })
+  });
+
+  const data = await res.json();
+  const currentJob = data.job;
+  const currentBuildNumber = data.number;
+
+  pollStatus(currentJob, currentBuildNumber);
+  pollLogs(currentJob, currentBuildNumber);
+}
+
+async function pollStatus(job, number) {
+  const statusDiv = document.getElementById("status");
+
+  while (polling) {
+    try {
+      const res = await fetch(`/api/status?job=${encodeURIComponent(job)}&number=${encodeURIComponent(number)}`, {
+        headers: { "x-api-key": API_KEY },
+        cache: "no-store"
+      });
+      const data = await res.json();
+      if (data.status === "RUNNING") statusDiv.innerHTML = "<span class='running'>Deploying...</span>";
+      else if (data.status === "SUCCESS") { statusDiv.innerHTML = "<span class='success'>SUCCESS</span>"; polling=false; break; }
+      else if (data.status === "FAILURE") { statusDiv.innerHTML = "<span class='failed'>FAILED</span>"; polling=false; break; }
+    } catch(e) { statusDiv.innerHTML = "<span class='failed'>Error</span>"; polling=false; break; }
+
+    await new Promise(r=>setTimeout(r,2000));
+  }
+}
+
+async function pollLogs(job, number) {
+  const logsDiv = document.getElementById("logs");
+  while(polling){
+    try {
+      const res = await fetch(`/api/logs?job=${encodeURIComponent(job)}&number=${encodeURIComponent(number)}`, {
+        headers: { "x-api-key": API_KEY },
+        cache: "no-store"
+      });
+      const data = await res.json();
+      logsDiv.innerText = data.logs || "Fetching logs...";
+      logsDiv.scrollTop = logsDiv.scrollHeight;
+      await new Promise(r=>setTimeout(r,2000));
+    } catch(e) { logsDiv.innerText += "\nError fetching logs..."; break; }
+  }
+}
+
+function showView(viewId) {
+  document.getElementById("dashboard-view").style.display = viewId === 'dashboard' ? 'block' : 'none';
+  document.getElementById("history-view").style.display = viewId === 'history' ? 'block' : 'none';
+  
+  if (viewId === 'history') {
+    loadHistory();
+  }
+}
+
+async function loadHistory() {
+  const container = document.getElementById("history-content");
+  container.innerHTML = "Loading history...";
+  
+  try {
+    const res = await fetch("/api/history", { headers: { "x-api-key": API_KEY } });
+    const data = await res.json();
+    
+    let html = `
+      <div class="stats-box">
+        <div class="stat-card">Java Builds Today: <span style="color:#2a5298">${data.today_counts.java}</span></div>
+        <div class="stat-card">.NET Builds Today: <span style="color:#2a5298">${data.today_counts.dotnet}</span></div>
+      </div>
+      <div class="history-grid">
+    `;
+    
+    // Render Java
+    for (const app in data.history.java) {
+      for (const type in data.history.java[app]) {
+        html += `<div class="history-card"><h3 style="margin-top:0">Java - ${app} (${type})</h3>`;
+        const builds = data.history.java[app][type];
+        if (builds.length === 0) html += `<p>No recent builds</p>`;
+        builds.forEach(b => {
+          const date = new Date(b.timestamp).toLocaleString();
+          const color = b.result === 'SUCCESS' ? 'green' : (b.result === 'FAILURE' ? 'red' : 'orange');
+          html += `<div class="build-item">
+            <span>#${b.number} - <small>${date}</small></span>
+            <span style="color:${color}; font-weight:bold">${b.result || 'RUNNING'}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+    }
+    
+    // Render Dotnet
+    for (const app in data.history.dotnet) {
+      html += `<div class="history-card"><h3 style="margin-top:0">.NET - ${app}</h3>`;
+      const builds = data.history.dotnet[app];
+      if (builds.length === 0) html += `<p>No recent builds</p>`;
+      builds.forEach(b => {
+        const date = new Date(b.timestamp).toLocaleString();
+        const color = b.result === 'SUCCESS' ? 'green' : (b.result === 'FAILURE' ? 'red' : 'orange');
+        html += `<div class="build-item">
+          <span>#${b.number} - <small>${date}</small></span>
+          <span style="color:${color}; font-weight:bold">${b.result || 'RUNNING'}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    
+    html += `</div>`;
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = "Error loading history.";
+  }
+}
+</script>
+
+</body>
+</html>
