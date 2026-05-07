@@ -90,24 +90,24 @@ def get_instance_status(instance_id):
 JOB_MAP = {
     "java": {
         "ols": {
-            "angular": " -OLS-UAT-ANGULAR-2",
-            "war": " _OLS_UAT_WAR",
+            "angular": " OLS-UAT-ANGULAR-2",
+            "war": " OLS_UAT_WAR",
             "war-angular": "DevOps/job/ols-full"
         },
         "admin": {
-            "war": " _ADMIN_UAT_WAR",
-            "angular": " _ADMIN_UAT_ANGULAR"
+            "war": " ADMIN_UAT_WAR",
+            "angular": " ADMIN_UAT_ANGULAR"
         }
     },
     "reports":{
-        "war": " _REPORTS_UAT_WAR",
-        "angular": " _REPORTS_UAT_ANGULAR"
+        "war": " REPORTS_UAT_WAR",
+        "angular": " REPORTS_UAT_ANGULAR"
         },
 
     "dotnet": {
-        "cms": " _UAT_CMS",
-        "fms": " _UAT_FMS",
-        "dms": " _UAT_DMS"
+        "cms": " UAT_CMS",
+        "fms": " UAT_FMS",
+        "dms": " UAT_DMS"
     }
 }
 
