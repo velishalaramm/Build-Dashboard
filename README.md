@@ -29,15 +29,14 @@ A centralized deployment dashboard built using [Flask](https://flask.palletsproj
 
 ### Java Applications
 
-* OLS
-* Admin
-* Reports
+* Cart
+* Payment
 
 ### .NET Applications
 
-* CMS
-* FMS
-* DMS
+* Wishlist
+
+
 
 ## Core Functionalities
 
